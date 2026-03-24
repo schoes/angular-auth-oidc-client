@@ -604,7 +604,7 @@ describe('Logout and Revoke Service', () => {
           {
             id_token_hint: 'id-token',
             client_id: 'clientId',
-            post_logout_redirect_uri: 'post-logout-redirect-url',
+            post_logout_redirect_uri: 'another-post-logout-redirect-url',
             state: 'state',
             logout_hint: 'logoutHint',
             ui_locales: 'de fr en',
