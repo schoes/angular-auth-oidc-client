@@ -377,6 +377,14 @@ Makes it possible to add an offset to the silent renew check in seconds. By ente
 If set to true, refresh tokens will be used for the silent renew process instead of the default iframes. <br/>
 Default = _false_
 
+### `useRefreshTokenLock`
+
+- Type: `boolean`
+- Required: `false`
+
+If set to true, refresh token requests are serialized across browser tabs using the [Web Locks API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API), so only one tab refreshes at a time while the others reuse the result. <br/>
+Default = _false_
+
 ### `ignoreNonceAfterRefresh`
 
 - Type: `boolean`

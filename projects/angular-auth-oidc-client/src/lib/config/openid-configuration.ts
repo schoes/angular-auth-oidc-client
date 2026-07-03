@@ -92,6 +92,13 @@ export interface OpenIdConfiguration {
    */
   useRefreshToken?: boolean;
   /**
+   * When set to true, refresh token requests are serialized across browser tabs using
+   * the Web Locks API, so only one tab refreshes at a time while the others reuse the
+   * result.
+   * Default value is false.
+   */
+  useRefreshTokenLock?: boolean;
+  /**
    * Suppresses the warning that recommends the `offline_access` scope when
    * using refresh tokens together with silent renew. Some providers support
    * this setup without requesting `offline_access`.
