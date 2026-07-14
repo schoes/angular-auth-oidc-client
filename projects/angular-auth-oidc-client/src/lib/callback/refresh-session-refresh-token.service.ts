@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { defer, firstValueFrom, Observable, throwError } from 'rxjs';
+import { defer, Observable, throwError } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { AuthStateService } from '../auth-state/auth-state.service';
 import { OpenIdConfiguration } from '../config/openid-configuration';
@@ -90,13 +90,11 @@ export class RefreshSessionRefreshTokenService {
             };
           }
 
-          return firstValueFrom(
-            this.flowsService.processRefreshToken(
-              config,
-              allConfigs,
-              customParamsRefresh
-            )
-          );
+          return new Promise<CallbackContext>((resolve, reject) => {
+            this.flowsService
+              .processRefreshToken(config, allConfigs, customParamsRefresh)
+              .subscribe({ next: resolve, error: reject });
+          });
         }
       );
     });
