@@ -163,6 +163,35 @@ describe('RefreshSessionRefreshTokenService', () => {
         });
       });
 
+      it('reuses the stored tokens when no access token existed before the lock', async () => {
+        Object.defineProperty(navigator, 'locks', {
+          value: {
+            request: (_name: string, cb: () => Promise<unknown>) => cb(),
+          },
+          configurable: true,
+        });
+        spyOn(authStateService, 'getAccessToken').and.returnValues(
+          '',
+          'new-access-token'
+        );
+        spyOn(authStateService, 'areAuthStorageTokensValid').and.returnValue(
+          true
+        );
+        spyOn(authStateService, 'getRefreshToken').and.returnValue(
+          'stored-refresh-token'
+        );
+        const processSpy = spyOn(flowsService, 'processRefreshToken');
+        const callbackContext = await firstValueFrom(
+          refreshSessionRefreshTokenService.refreshSessionWithRefreshTokens(
+            { configId: 'configId1', useRefreshTokenLock: true },
+            [{ configId: 'configId1' }]
+          )
+        );
+
+        expect(processSpy).not.toHaveBeenCalled();
+        expect(callbackContext.refreshToken).toBe('stored-refresh-token');
+      });
+
       it('still refreshes inside the lock when no other tab refreshed while waiting', async () => {
         Object.defineProperty(navigator, 'locks', {
           value: {
