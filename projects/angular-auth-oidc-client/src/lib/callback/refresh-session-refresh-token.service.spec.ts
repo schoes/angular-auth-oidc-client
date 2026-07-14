@@ -1,5 +1,5 @@
 import { fakeAsync, TestBed, tick, waitForAsync } from '@angular/core/testing';
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, NEVER, of, throwError } from 'rxjs';
 import { mockProvider } from '../../test/auto-mock';
 import { AuthStateService } from '../auth-state/auth-state.service';
 import { CallbackContext } from '../flows/callback-context';
@@ -338,6 +338,35 @@ describe('RefreshSessionRefreshTokenService', () => {
           firstValueFrom(
             refreshSessionRefreshTokenService.refreshSessionWithRefreshTokens(
               { configId: 'configId1', useRefreshTokenLock: true },
+              [{ configId: 'configId1' }]
+            )
+          )
+        ).toBeRejected();
+
+        expect(resetAuthorizationDataSpy).toHaveBeenCalled();
+      });
+
+      it('resetAuthorizationData when the refresh exceeds silentRenewTimeoutInSeconds inside the lock', async () => {
+        Object.defineProperty(navigator, 'locks', {
+          value: {
+            request: (_name: string, cb: () => Promise<unknown>) => cb(),
+          },
+          configurable: true,
+        });
+        spyOn(flowsService, 'processRefreshToken').and.returnValue(NEVER);
+        const resetAuthorizationDataSpy = spyOn(
+          resetAuthDataService,
+          'resetAuthorizationData'
+        );
+
+        await expectAsync(
+          firstValueFrom(
+            refreshSessionRefreshTokenService.refreshSessionWithRefreshTokens(
+              {
+                configId: 'configId1',
+                useRefreshTokenLock: true,
+                silentRenewTimeoutInSeconds: 0.01,
+              },
               [{ configId: 'configId1' }]
             )
           )

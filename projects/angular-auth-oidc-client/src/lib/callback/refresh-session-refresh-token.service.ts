@@ -1,6 +1,6 @@
 import { DOCUMENT, inject, Injectable } from '@angular/core';
 import { defer, Observable, throwError } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { catchError, finalize, timeout } from 'rxjs/operators';
 import { AuthStateService } from '../auth-state/auth-state.service';
 import { OpenIdConfiguration } from '../config/openid-configuration';
 import { CallbackContext } from '../flows/callback-context';
@@ -96,6 +96,7 @@ export class RefreshSessionRefreshTokenService {
         return new Promise<CallbackContext>((resolve, reject) => {
           this.flowsService
             .processRefreshToken(config, allConfigs, customParamsRefresh)
+            .pipe(timeout((config.silentRenewTimeoutInSeconds ?? 20) * 1000))
             .subscribe({ next: resolve, error: reject });
         });
       });
