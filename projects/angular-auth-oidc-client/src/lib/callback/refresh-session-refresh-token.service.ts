@@ -7,6 +7,7 @@ import { CallbackContext } from '../flows/callback-context';
 import { FlowsService } from '../flows/flows.service';
 import { ResetAuthDataService } from '../flows/reset-auth-data.service';
 import { LoggerService } from '../logging/logger.service';
+import { ValidationResult } from '../validation/validation-result';
 import { IntervalService } from './interval.service';
 
 @Injectable({ providedIn: 'root' })
@@ -76,6 +77,14 @@ export class RefreshSessionRefreshTokenService {
               config,
               'access token was already refreshed in another tab, reusing the stored tokens'
             );
+
+            this.authStateService.setAuthenticatedAndFireEvent(allConfigs);
+            this.authStateService.updateAndPublishAuthState({
+              isAuthenticated: true,
+              validationResult: ValidationResult.Ok,
+              isRenewProcess: true,
+              configId: config.configId,
+            });
 
             return {
               code: '',

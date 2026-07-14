@@ -6,6 +6,7 @@ import { CallbackContext } from '../flows/callback-context';
 import { FlowsService } from '../flows/flows.service';
 import { ResetAuthDataService } from '../flows/reset-auth-data.service';
 import { LoggerService } from '../logging/logger.service';
+import { ValidationResult } from '../validation/validation-result';
 import { IntervalService } from './interval.service';
 import { RefreshSessionRefreshTokenService } from './refresh-session-refresh-token.service';
 
@@ -129,6 +130,14 @@ describe('RefreshSessionRefreshTokenService', () => {
         spyOn(authStateService, 'getAuthenticationResult').and.returnValue({
           access_token: 'new-access-token',
         });
+        const setAuthenticatedSpy = spyOn(
+          authStateService,
+          'setAuthenticatedAndFireEvent'
+        );
+        const updateAuthStateSpy = spyOn(
+          authStateService,
+          'updateAndPublishAuthState'
+        );
         const processSpy = spyOn(flowsService, 'processRefreshToken');
         const callbackContext = await firstValueFrom(
           refreshSessionRefreshTokenService.refreshSessionWithRefreshTokens(
@@ -142,6 +151,15 @@ describe('RefreshSessionRefreshTokenService', () => {
         expect(callbackContext.existingIdToken).toBe('new-id-token');
         expect(callbackContext.authResult).toEqual({
           access_token: 'new-access-token',
+        });
+        expect(setAuthenticatedSpy).toHaveBeenCalledOnceWith([
+          { configId: 'configId1' },
+        ]);
+        expect(updateAuthStateSpy).toHaveBeenCalledOnceWith({
+          isAuthenticated: true,
+          validationResult: ValidationResult.Ok,
+          isRenewProcess: true,
+          configId: 'configId1',
         });
       });
 
