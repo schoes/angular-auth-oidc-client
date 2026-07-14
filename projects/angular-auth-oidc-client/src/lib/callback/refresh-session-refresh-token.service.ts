@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { DOCUMENT, inject, Injectable } from '@angular/core';
 import { defer, Observable, throwError } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { AuthStateService } from '../auth-state/auth-state.service';
@@ -17,6 +17,7 @@ export class RefreshSessionRefreshTokenService {
   private readonly flowsService = inject(FlowsService);
   private readonly intervalService = inject(IntervalService);
   private readonly authStateService = inject(AuthStateService);
+  private readonly document = inject(DOCUMENT);
 
   refreshSessionWithRefreshTokens(
     config: OpenIdConfiguration,
@@ -25,17 +26,15 @@ export class RefreshSessionRefreshTokenService {
   ): Observable<CallbackContext> {
     this.loggerService.logDebug(config, 'BEGIN refresh session Authorize');
     let refreshTokenFailed = false;
-    const useLock =
-      !!config.useRefreshTokenLock &&
-      typeof navigator !== 'undefined' &&
-      !!navigator.locks;
-    const refresh$ = useLock
-      ? this.refreshWithLock(config, allConfigs, customParamsRefresh)
-      : this.flowsService.processRefreshToken(
-          config,
-          allConfigs,
-          customParamsRefresh
-        );
+    const locks = this.document.defaultView?.navigator?.locks;
+    const refresh$ =
+      config.useRefreshTokenLock && locks
+        ? this.refreshWithLock(locks, config, allConfigs, customParamsRefresh)
+        : this.flowsService.processRefreshToken(
+            config,
+            allConfigs,
+            customParamsRefresh
+          );
 
     return refresh$.pipe(
       catchError((error) => {
@@ -52,6 +51,7 @@ export class RefreshSessionRefreshTokenService {
   }
 
   private refreshWithLock(
+    locks: LockManager,
     config: OpenIdConfiguration,
     allConfigs: OpenIdConfiguration[],
     customParamsRefresh?: { [key: string]: string | number | boolean }
@@ -62,50 +62,46 @@ export class RefreshSessionRefreshTokenService {
       const accessTokenBeforeLock =
         this.authStateService.getAccessToken(config);
 
-      return navigator.locks.request(
-        lockName,
-        async (): Promise<CallbackContext> => {
-          const currentAccessToken =
-            this.authStateService.getAccessToken(config);
-          const wasRefreshedInAnotherTab =
-            !!currentAccessToken &&
-            currentAccessToken !== accessTokenBeforeLock &&
-            this.authStateService.areAuthStorageTokensValid(config);
+      return locks.request(lockName, async (): Promise<CallbackContext> => {
+        const currentAccessToken = this.authStateService.getAccessToken(config);
+        const wasRefreshedInAnotherTab =
+          !!currentAccessToken &&
+          currentAccessToken !== accessTokenBeforeLock &&
+          this.authStateService.areAuthStorageTokensValid(config);
 
-          if (wasRefreshedInAnotherTab) {
-            this.loggerService.logDebug(
-              config,
-              'access token was already refreshed in another tab, reusing the stored tokens'
-            );
+        if (wasRefreshedInAnotherTab) {
+          this.loggerService.logDebug(
+            config,
+            'access token was already refreshed in another tab, reusing the stored tokens'
+          );
 
-            this.authStateService.setAuthenticatedAndFireEvent(allConfigs);
-            this.authStateService.updateAndPublishAuthState({
-              isAuthenticated: true,
-              validationResult: ValidationResult.Ok,
-              isRenewProcess: true,
-              configId: config.configId,
-            });
-
-            return {
-              code: '',
-              refreshToken: this.authStateService.getRefreshToken(config),
-              state: '',
-              sessionState: null,
-              authResult: this.authStateService.getAuthenticationResult(config),
-              isRenewProcess: true,
-              jwtKeys: null,
-              validationResult: null,
-              existingIdToken: this.authStateService.getIdToken(config),
-            };
-          }
-
-          return new Promise<CallbackContext>((resolve, reject) => {
-            this.flowsService
-              .processRefreshToken(config, allConfigs, customParamsRefresh)
-              .subscribe({ next: resolve, error: reject });
+          this.authStateService.setAuthenticatedAndFireEvent(allConfigs);
+          this.authStateService.updateAndPublishAuthState({
+            isAuthenticated: true,
+            validationResult: ValidationResult.Ok,
+            isRenewProcess: true,
+            configId: config.configId,
           });
+
+          return {
+            code: '',
+            refreshToken: this.authStateService.getRefreshToken(config),
+            state: '',
+            sessionState: null,
+            authResult: this.authStateService.getAuthenticationResult(config),
+            isRenewProcess: true,
+            jwtKeys: null,
+            validationResult: null,
+            existingIdToken: this.authStateService.getIdToken(config),
+          };
         }
-      );
+
+        return new Promise<CallbackContext>((resolve, reject) => {
+          this.flowsService
+            .processRefreshToken(config, allConfigs, customParamsRefresh)
+            .subscribe({ next: resolve, error: reject });
+        });
+      });
     });
   }
 }
