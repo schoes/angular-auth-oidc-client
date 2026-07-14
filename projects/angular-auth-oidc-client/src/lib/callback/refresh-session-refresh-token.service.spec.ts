@@ -109,6 +109,31 @@ describe('RefreshSessionRefreshTokenService', () => {
     }));
 
     describe('cross-tab refresh token lock', () => {
+      it('does not request a lock when useRefreshTokenLock is disabled', async () => {
+        const requestSpy = jasmine
+          .createSpy('request')
+          .and.callFake((_name: string, cb: () => Promise<unknown>) => cb());
+
+        Object.defineProperty(navigator, 'locks', {
+          value: { request: requestSpy },
+          configurable: true,
+        });
+        const processSpy = spyOn(
+          flowsService,
+          'processRefreshToken'
+        ).and.returnValue(of({} as CallbackContext));
+
+        await firstValueFrom(
+          refreshSessionRefreshTokenService.refreshSessionWithRefreshTokens(
+            { configId: 'configId1', useRefreshTokenLock: false },
+            [{ configId: 'configId1' }]
+          )
+        );
+
+        expect(requestSpy).not.toHaveBeenCalled();
+        expect(processSpy).toHaveBeenCalled();
+      });
+
       it('reuses the stored tokens and skips processRefreshToken when another tab already refreshed', async () => {
         Object.defineProperty(navigator, 'locks', {
           value: {
