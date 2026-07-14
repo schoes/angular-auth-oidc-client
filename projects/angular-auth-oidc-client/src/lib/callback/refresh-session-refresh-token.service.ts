@@ -4,6 +4,7 @@ import { catchError, finalize } from 'rxjs/operators';
 import { AuthStateService } from '../auth-state/auth-state.service';
 import { OpenIdConfiguration } from '../config/openid-configuration';
 import { CallbackContext } from '../flows/callback-context';
+import { createRenewCallbackContext } from '../flows/callback-context.helper';
 import { FlowsService } from '../flows/flows.service';
 import { ResetAuthDataService } from '../flows/reset-auth-data.service';
 import { LoggerService } from '../logging/logger.service';
@@ -83,17 +84,13 @@ export class RefreshSessionRefreshTokenService {
             configId: config.configId,
           });
 
-          return {
-            code: '',
-            refreshToken: this.authStateService.getRefreshToken(config),
-            state: '',
-            sessionState: null,
-            authResult: this.authStateService.getAuthenticationResult(config),
-            isRenewProcess: true,
-            jwtKeys: null,
-            validationResult: null,
-            existingIdToken: this.authStateService.getIdToken(config),
-          };
+          return createRenewCallbackContext(
+            this.authStateService.getRefreshToken(config),
+            this.authStateService.getIdToken(config),
+            {
+              authResult: this.authStateService.getAuthenticationResult(config),
+            }
+          );
         }
 
         return new Promise<CallbackContext>((resolve, reject) => {
