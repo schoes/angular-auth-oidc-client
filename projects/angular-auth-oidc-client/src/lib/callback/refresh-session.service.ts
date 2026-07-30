@@ -10,12 +10,12 @@ import {
 import {
   catchError,
   filter,
+  finalize,
   map,
   mergeMap,
   retryWhen,
   switchMap,
   take,
-  tap,
   timeout,
 } from 'rxjs/operators';
 import { AuthStateService } from '../auth-state/auth-state.service';
@@ -73,7 +73,7 @@ export class RefreshSessionService {
     this.persistCustomParams(extraCustomParams, config);
 
     return this.forceRefreshSession(config, allConfigs, extraCustomParams).pipe(
-      tap(() => this.flowsDataService.resetSilentRenewRunning(config))
+      finalize(() => this.flowsDataService.resetSilentRenewRunning(config))
     );
   }
 
@@ -172,7 +172,9 @@ export class RefreshSessionService {
           this.authStateService.areAuthStorageTokensValid(config);
 
         if (isAuthenticated) {
-          const authResult = refreshCompleted.success ? refreshCompleted.authResult : null
+          const authResult = refreshCompleted.success
+            ? refreshCompleted.authResult
+            : null;
 
           return {
             idToken: authResult?.id_token ?? '',
@@ -237,15 +239,11 @@ export class RefreshSessionService {
     }
 
     this.flowsDataService.setSilentRenewRunning(config);
+    this.publicEventsService.fireEvent(EventTypes.SilentRenewStarted);
 
     return this.authWellKnownService
       .queryAndStoreAuthWellKnownEndPoints(config)
       .pipe(
-        catchError((error) => {
-          this.flowsDataService.resetSilentRenewRunning(config);
-
-          return throwError(() => error);
-        }),
         switchMap(() => {
           if (this.flowHelper.isCurrentFlowCodeFlowWithRefreshTokens(config)) {
             // Refresh Session using Refresh tokens
@@ -261,6 +259,15 @@ export class RefreshSessionService {
             allConfigs,
             extraCustomParams
           );
+        }),
+        catchError((error) => {
+          this.publicEventsService.fireEvent(
+            EventTypes.SilentRenewFailed,
+            error
+          );
+          this.flowsDataService.resetSilentRenewRunning(config);
+
+          return throwError(() => error);
         })
       );
   }
@@ -275,25 +282,60 @@ export class RefreshSessionService {
       return of(false);
     }
 
+    const timeOutTime = (config.silentRenewTimeoutInSeconds ?? 20) * 1000;
+
     return this.publicEventsService.registerForEvents().pipe(
-      filter(
-        (notification) =>
-          notification.type === EventTypes.NewAuthenticationResult
-      ),
-      map((notification) => notification.value),
-      filter(
-        (
-          authStateResult
-        ): authStateResult is {
-          isRenewProcess: boolean;
-          configId?: string;
-        } =>
+      filter((notification) => {
+        if (notification.type === EventTypes.SilentRenewFailed) {
+          return true;
+        }
+
+        if (notification.type !== EventTypes.NewAuthenticationResult) {
+          return false;
+        }
+
+        const authStateResult = notification.value as
+          | {
+              isRenewProcess: boolean;
+              configId?: string;
+            }
+          | undefined;
+
+        return (
           !!authStateResult &&
           authStateResult.isRenewProcess === true &&
           authStateResult.configId === config.configId
-      ),
+        );
+      }),
       take(1),
-      map(() => true)
+      switchMap((notification) => {
+        if (notification.type === EventTypes.SilentRenewFailed) {
+          const error = notification.value;
+
+          return throwError(() =>
+            error instanceof Error
+              ? error
+              : new Error(String(error ?? 'Silent renew failed'))
+          );
+        }
+
+        return of(true);
+      }),
+      timeout(timeOutTime),
+      catchError((error) => {
+        if (error instanceof TimeoutError) {
+          return throwError(
+            () =>
+              new Error(
+                `Timed out waiting for the running refresh session for config '${
+                  config.configId ?? ''
+                }'`
+              )
+          );
+        }
+
+        return throwError(() => error);
+      })
     );
   }
 }
