@@ -5,6 +5,7 @@ import { OpenIdConfiguration } from '../../config/openid-configuration';
 import { LoggerService } from '../../logging/logger.service';
 import { TokenValidationService } from '../../validation/token-validation.service';
 import { CallbackContext } from '../callback-context';
+import { createRenewCallbackContext } from '../callback-context.helper';
 import { FlowsDataService } from '../flows-data.service';
 
 @Injectable({ providedIn: 'root' })
@@ -28,17 +29,11 @@ export class RefreshSessionCallbackHandlerService {
     const idToken = this.authStateService.getIdToken(config);
 
     if (refreshToken) {
-      const callbackContext: CallbackContext = {
-        code: '',
+      const callbackContext: CallbackContext = createRenewCallbackContext(
         refreshToken,
-        state: stateData,
-        sessionState: null,
-        authResult: null,
-        isRenewProcess: true,
-        jwtKeys: null,
-        validationResult: null,
-        existingIdToken: idToken,
-      };
+        idToken,
+        { state: stateData }
+      );
 
       this.loggerService.logDebug(
         config,
