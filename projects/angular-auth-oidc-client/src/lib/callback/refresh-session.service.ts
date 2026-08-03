@@ -8,13 +8,14 @@ import {
   timer,
 } from 'rxjs';
 import {
+  catchError,
   filter,
+  finalize,
   map,
   mergeMap,
   retryWhen,
   switchMap,
   take,
-  tap,
   timeout,
 } from 'rxjs/operators';
 import { AuthStateService } from '../auth-state/auth-state.service';
@@ -26,6 +27,8 @@ import { RefreshSessionIframeService } from '../iframe/refresh-session-iframe.se
 import { SilentRenewService } from '../iframe/silent-renew.service';
 import { LoggerService } from '../logging/logger.service';
 import { LoginResponse } from '../login/login-response';
+import { EventTypes } from '../public-events/event-types';
+import { PublicEventsService } from '../public-events/public-events.service';
 import { StoragePersistenceService } from '../storage/storage-persistence.service';
 import { UserService } from '../user-data/user.service';
 import { FlowHelper } from '../utils/flowHelper/flow-helper.service';
@@ -50,6 +53,7 @@ export class RefreshSessionService {
   private readonly refreshSessionRefreshTokenService = inject(
     RefreshSessionRefreshTokenService
   );
+  private readonly publicEventsService = inject(PublicEventsService);
   private readonly userService = inject(UserService);
 
   userForceRefreshSession(
@@ -69,7 +73,7 @@ export class RefreshSessionService {
     this.persistCustomParams(extraCustomParams, config);
 
     return this.forceRefreshSession(config, allConfigs, extraCustomParams).pipe(
-      tap(() => this.flowsDataService.resetSilentRenewRunning(config))
+      finalize(() => this.flowsDataService.resetSilentRenewRunning(config))
     );
   }
 
@@ -85,15 +89,31 @@ export class RefreshSessionService {
     };
 
     if (this.flowHelper.isCurrentFlowCodeFlowWithRefreshTokens(config)) {
-      return this.startRefreshSession(config, allConfigs, mergedParams).pipe(
-        map(() => {
+      return this.waitForRunningRefreshSessionIfRequired(config).pipe(
+        switchMap((shouldWaitForRunningRenew) => {
+          if (shouldWaitForRunningRenew) {
+            return of(null);
+          }
+
+          return this.startRefreshSession(config, allConfigs, mergedParams);
+        }),
+        map((refreshSessionResult) => {
           const isAuthenticated =
             this.authStateService.areAuthStorageTokensValid(config);
 
           if (isAuthenticated) {
+            const authResult =
+              refreshSessionResult && typeof refreshSessionResult !== 'boolean'
+                ? refreshSessionResult.authResult
+                : null;
+
             return {
-              idToken: this.authStateService.getIdToken(config),
-              accessToken: this.authStateService.getAccessToken(config),
+              idToken:
+                authResult?.id_token ??
+                this.authStateService.getIdToken(config),
+              accessToken:
+                authResult?.access_token ??
+                this.authStateService.getAccessToken(config),
               userData: this.userService.getUserDataFromStore(config),
               isAuthenticated,
               configId,
@@ -152,7 +172,9 @@ export class RefreshSessionService {
           this.authStateService.areAuthStorageTokensValid(config);
 
         if (isAuthenticated) {
-          const authResult = refreshCompleted.success ? refreshCompleted.authResult : null
+          const authResult = refreshCompleted.success
+            ? refreshCompleted.authResult
+            : null;
 
           return {
             idToken: authResult?.id_token ?? '',
@@ -216,12 +238,13 @@ export class RefreshSessionService {
       return of(null);
     }
 
+    this.flowsDataService.setSilentRenewRunning(config);
+    this.publicEventsService.fireEvent(EventTypes.SilentRenewStarted);
+
     return this.authWellKnownService
       .queryAndStoreAuthWellKnownEndPoints(config)
       .pipe(
         switchMap(() => {
-          this.flowsDataService.setSilentRenewRunning(config);
-
           if (this.flowHelper.isCurrentFlowCodeFlowWithRefreshTokens(config)) {
             // Refresh Session using Refresh tokens
             return this.refreshSessionRefreshTokenService.refreshSessionWithRefreshTokens(
@@ -236,7 +259,83 @@ export class RefreshSessionService {
             allConfigs,
             extraCustomParams
           );
+        }),
+        catchError((error) => {
+          this.publicEventsService.fireEvent(
+            EventTypes.SilentRenewFailed,
+            error
+          );
+          this.flowsDataService.resetSilentRenewRunning(config);
+
+          return throwError(() => error);
         })
       );
+  }
+
+  private waitForRunningRefreshSessionIfRequired(
+    config: OpenIdConfiguration
+  ): Observable<boolean> {
+    const isSilentRenewRunning =
+      this.flowsDataService.isSilentRenewRunning(config);
+
+    if (!isSilentRenewRunning) {
+      return of(false);
+    }
+
+    const timeOutTime = (config.silentRenewTimeoutInSeconds ?? 20) * 1000;
+
+    return this.publicEventsService.registerForEvents().pipe(
+      filter((notification) => {
+        if (notification.type === EventTypes.SilentRenewFailed) {
+          return true;
+        }
+
+        if (notification.type !== EventTypes.NewAuthenticationResult) {
+          return false;
+        }
+
+        const authStateResult = notification.value as
+          | {
+              isRenewProcess: boolean;
+              configId?: string;
+            }
+          | undefined;
+
+        return (
+          !!authStateResult &&
+          authStateResult.isRenewProcess === true &&
+          authStateResult.configId === config.configId
+        );
+      }),
+      take(1),
+      switchMap((notification) => {
+        if (notification.type === EventTypes.SilentRenewFailed) {
+          const error = notification.value;
+
+          return throwError(() =>
+            error instanceof Error
+              ? error
+              : new Error(String(error ?? 'Silent renew failed'))
+          );
+        }
+
+        return of(true);
+      }),
+      timeout(timeOutTime),
+      catchError((error) => {
+        if (error instanceof TimeoutError) {
+          return throwError(
+            () =>
+              new Error(
+                `Timed out waiting for the running refresh session for config '${
+                  config.configId ?? ''
+                }'`
+              )
+          );
+        }
+
+        return throwError(() => error);
+      })
+    );
   }
 }

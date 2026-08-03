@@ -1,5 +1,5 @@
 import { fakeAsync, TestBed, tick, waitForAsync } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, ReplaySubject, throwError } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { mockProvider } from '../../test/auto-mock';
 import { AuthStateService } from '../auth-state/auth-state.service';
@@ -10,6 +10,7 @@ import { RefreshSessionIframeService } from '../iframe/refresh-session-iframe.se
 import { SilentRenewService } from '../iframe/silent-renew.service';
 import { LoggerService } from '../logging/logger.service';
 import { LoginResponse } from '../login/login-response';
+import { EventTypes } from '../public-events/event-types';
 import { PublicEventsService } from '../public-events/public-events.service';
 import { StoragePersistenceService } from '../storage/storage-persistence.service';
 import { UserService } from '../user-data/user.service';
@@ -30,6 +31,8 @@ describe('RefreshSessionService ', () => {
   let refreshSessionIframeService: RefreshSessionIframeService;
   let refreshSessionRefreshTokenService: RefreshSessionRefreshTokenService;
   let authWellKnownService: AuthWellKnownService;
+  let publicEventsService: PublicEventsService;
+  let userService: UserService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -63,6 +66,8 @@ describe('RefreshSessionService ', () => {
     silentRenewService = TestBed.inject(SilentRenewService);
     authWellKnownService = TestBed.inject(AuthWellKnownService);
     storagePersistenceService = TestBed.inject(StoragePersistenceService);
+    publicEventsService = TestBed.inject(PublicEventsService);
+    userService = TestBed.inject(UserService);
   });
 
   it('should create', () => {
@@ -186,12 +191,11 @@ describe('RefreshSessionService ', () => {
           error: (error) => {
             expect(error).toBeInstanceOf(Error);
           },
-          complete: () => {
-            expect(
-              flowsDataService.resetSilentRenewRunning
-            ).toHaveBeenCalledOnceWith(allConfigs[0]);
-          },
         });
+
+      expect(flowsDataService.resetSilentRenewRunning).toHaveBeenCalledOnceWith(
+        allConfigs[0]
+      );
     }));
 
     it('should call resetSilentRenewRunning in case of no error', waitForAsync(() => {
@@ -213,12 +217,11 @@ describe('RefreshSessionService ', () => {
           error: () => {
             fail('It should not return any error.');
           },
-          complete: () => {
-            expect(
-              flowsDataService.resetSilentRenewRunning
-            ).toHaveBeenCalledOnceWith(allConfigs[0]);
-          },
         });
+
+      expect(flowsDataService.resetSilentRenewRunning).toHaveBeenCalledOnceWith(
+        allConfigs[0]
+      );
     }));
   });
 
@@ -285,6 +288,228 @@ describe('RefreshSessionService ', () => {
         });
     }));
 
+    it('returns tokens from the completed refresh result when auth-state getters are stale', waitForAsync(() => {
+      const allConfigs = [
+        {
+          configId: 'configId1',
+          silentRenewTimeoutInSeconds: 10,
+        },
+      ];
+      const refreshResult = {
+        authResult: {
+          id_token: 'fresh-id-token',
+          access_token: 'fresh-access-token',
+        },
+      } as CallbackContext;
+
+      spyOn(
+        flowHelper,
+        'isCurrentFlowCodeFlowWithRefreshTokens'
+      ).and.returnValue(true);
+      spyOn(
+        refreshSessionService as any,
+        'waitForRunningRefreshSessionIfRequired'
+      ).and.returnValue(of(false));
+      spyOn(
+        refreshSessionService as any,
+        'startRefreshSession'
+      ).and.returnValue(of(refreshResult));
+      spyOn(authStateService, 'areAuthStorageTokensValid').and.returnValue(
+        true
+      );
+      spyOn(authStateService, 'getIdToken').and.returnValue('stale-id-token');
+      spyOn(authStateService, 'getAccessToken').and.returnValue(
+        'stale-access-token'
+      );
+      spyOn(userService, 'getUserDataFromStore').and.returnValue({
+        sub: '123',
+      } as any);
+
+      refreshSessionService
+        .forceRefreshSession(allConfigs[0], allConfigs)
+        .subscribe((result) => {
+          expect(result).toEqual({
+            idToken: 'fresh-id-token',
+            accessToken: 'fresh-access-token',
+            userData: { sub: '123' },
+            isAuthenticated: true,
+            configId: 'configId1',
+          });
+        });
+    }));
+
+    it('falls back to auth-state getters when no refresh auth result is available', waitForAsync(() => {
+      const allConfigs = [
+        {
+          configId: 'configId1',
+          silentRenewTimeoutInSeconds: 10,
+        },
+      ];
+
+      spyOn(
+        flowHelper,
+        'isCurrentFlowCodeFlowWithRefreshTokens'
+      ).and.returnValue(true);
+      spyOn(
+        refreshSessionService as any,
+        'waitForRunningRefreshSessionIfRequired'
+      ).and.returnValue(of(false));
+      spyOn(
+        refreshSessionService as any,
+        'startRefreshSession'
+      ).and.returnValue(of(null));
+      spyOn(authStateService, 'areAuthStorageTokensValid').and.returnValue(
+        true
+      );
+      spyOn(authStateService, 'getIdToken').and.returnValue('stored-id-token');
+      spyOn(authStateService, 'getAccessToken').and.returnValue(
+        'stored-access-token'
+      );
+
+      refreshSessionService
+        .forceRefreshSession(allConfigs[0], allConfigs)
+        .subscribe((result) => {
+          expect(result.idToken).toBe('stored-id-token');
+          expect(result.accessToken).toBe('stored-access-token');
+        });
+    }));
+
+    it('waits for a running periodic silent renew instead of starting a manual refresh', fakeAsync(() => {
+      const allConfigs = [
+        {
+          configId: 'configId1',
+          silentRenewTimeoutInSeconds: 10,
+        },
+      ];
+      const events$ = new ReplaySubject<any>(1);
+      let actualResult: LoginResponse | undefined;
+
+      spyOn(
+        flowHelper,
+        'isCurrentFlowCodeFlowWithRefreshTokens'
+      ).and.returnValue(true);
+      spyOn(flowsDataService, 'isSilentRenewRunning').and.returnValue(true);
+      spyOn(publicEventsService, 'registerForEvents').and.returnValue(events$);
+      const startRefreshSessionSpy = spyOn(
+        refreshSessionService as any,
+        'startRefreshSession'
+      );
+
+      spyOn(authStateService, 'areAuthStorageTokensValid').and.returnValue(
+        true
+      );
+      spyOn(authStateService, 'getIdToken').and.returnValue('updated-id-token');
+      spyOn(authStateService, 'getAccessToken').and.returnValue(
+        'updated-access-token'
+      );
+
+      events$.next({
+        type: EventTypes.SilentRenewStarted,
+      });
+
+      refreshSessionService
+        .forceRefreshSession(allConfigs[0], allConfigs)
+        .subscribe((result) => {
+          actualResult = result;
+        });
+
+      tick();
+      expect(actualResult).toBeUndefined();
+      expect(startRefreshSessionSpy).not.toHaveBeenCalled();
+
+      events$.next({
+        type: EventTypes.NewAuthenticationResult,
+        value: {
+          configId: 'configId1',
+          isRenewProcess: true,
+        },
+      });
+      tick();
+
+      expect(actualResult).toEqual({
+        idToken: 'updated-id-token',
+        accessToken: 'updated-access-token',
+        userData: undefined,
+        isAuthenticated: true,
+        configId: 'configId1',
+      });
+    }));
+
+    it('propagates a failure from the running periodic silent renew', fakeAsync(() => {
+      const allConfigs = [
+        {
+          configId: 'configId1',
+          silentRenewTimeoutInSeconds: 10,
+        },
+      ];
+      const events$ = new ReplaySubject<any>(1);
+      const expectedError = new Error('periodic refresh failed');
+      let actualError: Error | undefined;
+
+      spyOn(
+        flowHelper,
+        'isCurrentFlowCodeFlowWithRefreshTokens'
+      ).and.returnValue(true);
+      spyOn(flowsDataService, 'isSilentRenewRunning').and.returnValue(true);
+      spyOn(publicEventsService, 'registerForEvents').and.returnValue(events$);
+
+      events$.next({
+        type: EventTypes.SilentRenewStarted,
+      });
+
+      refreshSessionService
+        .forceRefreshSession(allConfigs[0], allConfigs)
+        .subscribe({
+          error: (error) => {
+            actualError = error;
+          },
+        });
+
+      events$.next({
+        type: EventTypes.SilentRenewFailed,
+        value: expectedError,
+      });
+      tick();
+
+      expect(actualError).toBe(expectedError);
+    }));
+
+    it('times out while waiting for a running periodic silent renew', fakeAsync(() => {
+      const allConfigs = [
+        {
+          configId: 'configId1',
+          silentRenewTimeoutInSeconds: 1,
+        },
+      ];
+      const events$ = new ReplaySubject<any>(1);
+      let actualError: Error | undefined;
+
+      spyOn(
+        flowHelper,
+        'isCurrentFlowCodeFlowWithRefreshTokens'
+      ).and.returnValue(true);
+      spyOn(flowsDataService, 'isSilentRenewRunning').and.returnValue(true);
+      spyOn(publicEventsService, 'registerForEvents').and.returnValue(events$);
+
+      events$.next({
+        type: EventTypes.SilentRenewStarted,
+      });
+
+      refreshSessionService
+        .forceRefreshSession(allConfigs[0], allConfigs)
+        .subscribe({
+          error: (error) => {
+            actualError = error;
+          },
+        });
+
+      tick(1000);
+
+      expect(actualError?.message).toBe(
+        "Timed out waiting for the running refresh session for config 'configId1'"
+      );
+    }));
+
     it('calls start refresh session and waits for completed, returns idtoken and accesstoken if auth is true', waitForAsync(() => {
       spyOn(
         flowHelper,
@@ -307,7 +532,7 @@ describe('RefreshSessionService ', () => {
             id_token: 'some-id_token',
             access_token: 'some-access_token',
           },
-          configId: 'configId1'
+          configId: 'configId1',
         })
       );
       const allConfigs = [
@@ -374,7 +599,11 @@ describe('RefreshSessionService ', () => {
       spyOnProperty(
         silentRenewService,
         'refreshSessionWithIFrameCompleted$'
-      ).and.returnValue(of({success: false, configId: 'configId1' } as const).pipe(delay(11000)));
+      ).and.returnValue(
+        of({ success: false, configId: 'configId1' } as const).pipe(
+          delay(11000)
+        )
+      );
 
       spyOn(authStateService, 'areAuthStorageTokensValid').and.returnValue(
         false
@@ -517,7 +746,7 @@ describe('RefreshSessionService ', () => {
               id_token: 'some-id_token',
               access_token: 'some-access_token',
             },
-            configId: 'configId1'
+            configId: 'configId1',
           })
         );
         const spyInsideMap = spyOn(
@@ -562,11 +791,13 @@ describe('RefreshSessionService ', () => {
         });
     }));
 
-    it('calls `setSilentRenewRunning` when should be executed', waitForAsync(() => {
+    it('sets the running flag before async discovery so periodic renew cannot race', waitForAsync(() => {
+      const callOrder: string[] = [];
       const setSilentRenewRunningSpy = spyOn(
         flowsDataService,
         'setSilentRenewRunning'
-      );
+      ).and.callFake(() => callOrder.push('set-running'));
+      const fireEventSpy = spyOn(publicEventsService, 'fireEvent');
       const allConfigs = [
         {
           configId: 'configId1',
@@ -575,10 +806,14 @@ describe('RefreshSessionService ', () => {
       ];
 
       spyOn(flowsDataService, 'isSilentRenewRunning').and.returnValue(false);
-      spyOn(
+      const queryAuthWellKnownSpy = spyOn(
         authWellKnownService,
         'queryAndStoreAuthWellKnownEndPoints'
-      ).and.returnValue(of({}));
+      ).and.callFake(() => {
+        callOrder.push('query-well-known');
+
+        return of({});
+      });
 
       spyOn(
         flowHelper,
@@ -593,6 +828,11 @@ describe('RefreshSessionService ', () => {
         .startRefreshSession(allConfigs[0], allConfigs)
         .subscribe(() => {
           expect(setSilentRenewRunningSpy).toHaveBeenCalled();
+          expect(queryAuthWellKnownSpy).toHaveBeenCalled();
+          expect(callOrder).toEqual(['set-running', 'query-well-known']);
+          expect(fireEventSpy).toHaveBeenCalledWith(
+            EventTypes.SilentRenewStarted
+          );
         });
     }));
 
