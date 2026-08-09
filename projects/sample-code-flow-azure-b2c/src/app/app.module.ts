@@ -25,7 +25,7 @@ import { UnauthorizedComponent } from './unauthorized/unauthorized.component';
   ],
   bootstrap: [AppComponent],
   imports: [
-    BrowserModule.withServerTransition({ appId: 'ng-cli-universal' }),
+    BrowserModule,
     FormsModule,
     routing,
     AuthConfigModule,

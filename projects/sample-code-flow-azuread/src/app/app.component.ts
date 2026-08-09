@@ -1,12 +1,13 @@
-﻿import { Component, inject } from '@angular/core';
+﻿import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { NavMenuComponent } from './nav-menu/nav-menu.component';
 
 @Component({
-    selector: 'app-root',
-    templateUrl: 'app.component.html',
-    imports: [RouterOutlet, NavMenuComponent]
+  selector: 'app-root',
+  templateUrl: 'app.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [RouterOutlet, NavMenuComponent],
 })
 export class AppComponent {
   private readonly oidcSecurityService = inject(OidcSecurityService);

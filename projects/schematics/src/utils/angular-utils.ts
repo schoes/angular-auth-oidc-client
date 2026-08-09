@@ -3,7 +3,7 @@ import { SchematicsException, Tree } from '@angular-devkit/schematics';
 import { ProjectDefinition, WorkspaceDefinition, getWorkspace } from '@schematics/angular/utility/workspace';
 import { WorkspaceProject, WorkspaceSchema } from '@schematics/angular/utility/workspace-models';
 import { Schema } from '../ng-add/schema';
-import ts = require('@schematics/angular/third_party/github.com/Microsoft/TypeScript/lib/typescript');
+import ts = require('typescript');
 export const ANGULAR_JSON_FILENAME = 'angular.json';
 
 export function getAngularWorkspace(tree: Tree): WorkspaceSchema {
@@ -22,6 +22,7 @@ export function updateProjectInAngularJson(tree: Tree, content: WorkspaceProject
 
   const workspaceContent = getAngularJsonContent(tree);
   const workspace = JSON.parse(workspaceContent);
+
   workspace['projects'][projectName] = content;
   tree.overwrite(ANGULAR_JSON_FILENAME, JSON.stringify(workspace, null, 2));
 }
@@ -42,6 +43,7 @@ export function getProject(tree: Tree, projectName?: string): [string, Workspace
 
 export function readIntoSourceFile(host: Tree, fileName: string): ts.SourceFile {
   const buffer = host.read(fileName);
+
   if (buffer === null) {
     throw new SchematicsException(`File ${fileName} does not exist.`);
   }
@@ -81,7 +83,7 @@ export async function isStandaloneSchematic(host: Tree, options: Schema): Promis
   return isStandaloneApp(host, getProjectMainFile(project));
 }
 
-// TODO: replace with the following when NG 15 supprt is dropped 
+// TODO: replace with the following when NG 15 supprt is dropped
 // import { isStandaloneApp } from '@schematics/angular/utility/ng-ast-utils';
 function isStandaloneApp(host: Tree, mainPath: string): boolean {
   const source = ts.createSourceFile(

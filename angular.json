@@ -40,7 +40,8 @@
             "lintFilePatterns": [
               "projects/angular-auth-oidc-client/**/*.ts",
               "projects/angular-auth-oidc-client/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/angular-auth-oidc-client/eslint.config.js"
           }
         }
       }
@@ -153,7 +154,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-multi-iframe/**/*.ts",
               "projects/sample-code-flow-multi-iframe/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-multi-iframe/eslint.config.js"
           }
         }
       }
@@ -265,7 +267,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-auto-login/**/*.ts",
               "projects/sample-code-flow-auto-login/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-auto-login/eslint.config.js"
           }
         }
       }
@@ -377,7 +380,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-http-config/**/*.ts",
               "projects/sample-code-flow-http-config/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-http-config/eslint.config.js"
           }
         }
       }
@@ -488,7 +492,8 @@
             "lintFilePatterns": [
               "projects/sample-implicit-flow-google/**/*.ts",
               "projects/sample-implicit-flow-google/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-implicit-flow-google/eslint.config.js"
           }
         }
       }
@@ -599,7 +604,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-azuread/**/*.ts",
               "projects/sample-code-flow-azuread/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-azuread/eslint.config.js"
           }
         }
       }
@@ -711,7 +717,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-azure-b2c/**/*.ts",
               "projects/sample-code-flow-azure-b2c/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-azure-b2c/eslint.config.js"
           }
         }
       }
@@ -827,7 +834,8 @@
             "lintFilePatterns": [
               "projects/sample-implicit-flow-silent-renew/**/*.ts",
               "projects/sample-implicit-flow-silent-renew/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-implicit-flow-silent-renew/eslint.config.js"
           }
         }
       }
@@ -936,7 +944,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-auth0/**/*.ts",
               "projects/sample-code-flow-auth0/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-auth0/eslint.config.js"
           }
         }
       }
@@ -1051,7 +1060,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-refresh-tokens/**/*.ts",
               "projects/sample-code-flow-refresh-tokens/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-refresh-tokens/eslint.config.js"
           }
         }
       }
@@ -1156,7 +1166,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-standalone/**/*.ts",
               "projects/sample-code-flow-standalone/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-standalone/eslint.config.js"
           }
         }
       }
@@ -1271,7 +1282,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-multi-Azure-B2C/**/*.ts",
               "projects/sample-code-flow-multi-Azure-B2C/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-multi-Azure-B2C/eslint.config.js"
           }
         }
       }
@@ -1382,7 +1394,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-multi-AAD/**/*.ts",
               "projects/sample-code-flow-multi-AAD/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-multi-AAD/eslint.config.js"
           }
         }
       }
@@ -1497,7 +1510,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-multi-Auth0-ID4-popup/**/*.ts",
               "projects/sample-code-flow-multi-Auth0-ID4-popup/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-multi-Auth0-ID4-popup/eslint.config.js"
           }
         }
       }
@@ -1612,7 +1626,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-multi-Auth0-ID4/**/*.ts",
               "projects/sample-code-flow-multi-Auth0-ID4/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-multi-Auth0-ID4/eslint.config.js"
           }
         }
       }
@@ -1722,7 +1737,8 @@
             "lintFilePatterns": [
               "projects/sample-code-flow-lazy-loaded/**/*.ts",
               "projects/sample-code-flow-lazy-loaded/**/*.html"
-            ]
+            ],
+            "eslintConfig": "projects/sample-code-flow-lazy-loaded/eslint.config.js"
           }
         }
       }
@@ -2067,62 +2083,6 @@
       "sourceRoot": "projects/integration-tests/src",
       "prefix": "app",
       "architect": {
-        "build": {
-          "builder": "@angular/build:application",
-          "options": {
-            "outputPath": "dist/integration-tests",
-            "index": "projects/integration-tests/src/index.html",
-            "browser": "projects/integration-tests/src/main.ts",
-            "polyfills": ["zone.js"],
-            "tsConfig": "projects/integration-tests/tsconfig.app.json",
-            "assets": [
-              {
-                "glob": "**/*",
-                "input": "projects/integration-tests/public"
-              }
-            ],
-            "styles": ["projects/integration-tests/src/styles.css"],
-            "scripts": []
-          },
-          "configurations": {
-            "production": {
-              "budgets": [
-                {
-                  "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
-                },
-                {
-                  "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
-                  "maximumError": "8kB"
-                }
-              ],
-              "outputHashing": "all"
-            },
-            "development": {
-              "optimization": false,
-              "extractLicenses": false,
-              "sourceMap": true
-            }
-          },
-          "defaultConfiguration": "production"
-        },
-        "serve": {
-          "builder": "@angular/build:dev-server",
-          "configurations": {
-            "production": {
-              "buildTarget": "integration-tests:build:production"
-            },
-            "development": {
-              "buildTarget": "integration-tests:build:development"
-            }
-          },
-          "defaultConfiguration": "development"
-        },
-        "extract-i18n": {
-          "builder": "@angular/build:extract-i18n"
-        },
         "test": {
           "builder": "@angular/build:karma",
           "options": {

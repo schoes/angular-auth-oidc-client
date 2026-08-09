@@ -4,7 +4,10 @@ const angularJson = fs.readJsonSync('./angular.json');
 
 getApplications = (allProjects) => {
   return Object.entries(allProjects)
-    .filter(([key, value]) => value.projectType === 'application')
+    .filter(
+      ([key, value]) =>
+        value.projectType === 'application' && !!value.architect?.build
+    )
     .map(([key, value]) => key);
 };
 

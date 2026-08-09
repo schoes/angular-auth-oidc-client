@@ -2,15 +2,14 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "baseUrl": "./",
     "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "strict": true,
     "paths": {
       "angular-auth-oidc-client": [
-        "dist/angular-auth-oidc-client/angular-auth-oidc-client",
-        "dist/angular-auth-oidc-client"
+        "./dist/angular-auth-oidc-client/angular-auth-oidc-client",
+        "./dist/angular-auth-oidc-client"
       ]
     },
     "noImplicitReturns": true,
