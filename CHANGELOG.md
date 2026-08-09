@@ -1,7 +1,11 @@
 ## Angular Lib for OpenID Connect/OAuth2 Changelog
 
-### 2026-05-28 21.0.3
+### 2026-08-09 21.0.3
 
+- feat: add useRefreshTokenLock to serialize refresh token renewal across tabs
+  - [PR](https://github.com/damienbod/angular-auth-oidc-client/pull/2237)
+- feat: improve handling of silent renew race conditions
+  - [PR](https://github.com/damienbod/angular-auth-oidc-client/pull/2186)
 - Make offline_access refresh-token warning configurable
   - [PR](https://github.com/damienbod/angular-auth-oidc-client/pull/2187)
 - Fix: don't send code_challenge in PAR flow when disablePkce is true
