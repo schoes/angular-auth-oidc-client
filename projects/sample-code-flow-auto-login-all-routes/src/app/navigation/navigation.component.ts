@@ -1,11 +1,17 @@
-import { Component, OnInit, inject } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  inject,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 
 @Component({
-    selector: 'app-navigation',
-    templateUrl: 'navigation.component.html',
-    styleUrls: ['navigation.component.css'],
-    standalone: false
+  selector: 'app-navigation',
+  templateUrl: 'navigation.component.html',
+  styleUrls: ['navigation.component.css'],
+  changeDetection: ChangeDetectionStrategy.Eager,
+  standalone: false,
 })
 export class NavigationComponent implements OnInit {
   private readonly oidcSecurityService = inject(OidcSecurityService);

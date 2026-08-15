@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 
 @Component({
-    selector: 'app-forbidden',
-    templateUrl: 'forbidden.component.html',
-    standalone: false
+  selector: 'app-forbidden',
+  templateUrl: 'forbidden.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
+  standalone: false,
 })
 export class ForbiddenComponent {}
