@@ -1,5 +1,8 @@
 ## Angular Lib for OpenID Connect/OAuth2 Changelog
 
+### 2026-08-15 22.0.0
+- Update Angular 22
+
 ### 2026-08-09 21.0.3
 
 - feat: add useRefreshTokenLock to serialize refresh token renewal across tabs
